@@ -153,6 +153,12 @@ struct _opl3_chip {
     uint32_t writebuf_last;
     uint64_t writebuf_lasttime;
     opl3_writebuf writebuf[OPL_WRITEBUF_SIZE];
+
+    /* Fake timers */
+    uint8_t timer1_load;
+    uint8_t timer2_load;
+    uint8_t timer_control;
+    uint8_t status;     /* bits 0,1,7 */
 };
 
 void OPL3_Generate(opl3_chip *chip, int16_t *buf);
@@ -161,10 +167,12 @@ void OPL3_Reset(opl3_chip *chip, uint32_t samplerate);
 void OPL3_WriteReg(opl3_chip *chip, uint16_t reg, uint8_t v);
 void OPL3_WriteRegBuffered(opl3_chip *chip, uint16_t reg, uint8_t v);
 void OPL3_GenerateStream(opl3_chip *chip, int16_t *sndptr, uint32_t numsamples);
+void OPL3_GenerateStreamMono(opl3_chip* chip, int16_t* sndptr, uint32_t numsamples);
 
 void OPL3_Generate4Ch(opl3_chip *chip, int16_t *buf4);
 void OPL3_Generate4ChResampled(opl3_chip *chip, int16_t *buf4);
 void OPL3_Generate4ChStream(opl3_chip *chip, int16_t *sndptr1, int16_t *sndptr2, uint32_t numsamples);
+uint8_t OPL3_ReadReg(opl3_chip* chip, unsigned int reg);
 
 #ifdef __cplusplus
 }

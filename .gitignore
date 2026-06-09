@@ -1,0 +1,11 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs/opl3dll
+/opl3/x64/Release/opl3.tlog
+/opl3/x64/Release
+/opl3dll/x64/Debug
+/opl3dll/x64/Release/opl3dll.tlog
+/opl3dll/x64/Release
+/x64

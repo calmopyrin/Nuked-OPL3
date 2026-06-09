@@ -1499,6 +1499,21 @@ void OPL3_WriteRegBuffered(opl3_chip *chip, uint16_t reg, uint8_t v)
     writebuf->time = time1;
     chip->writebuf_lasttime = time1;
     chip->writebuf_last = (writebuf_last + 1) % OPL_WRITEBUF_SIZE;
+
+    /* Fake timers */
+    if (reg == 0x02) {          // Timer 1 load
+        chip->timer1_load = v;
+    }
+    else if (reg == 0x03) {     // Timer 2 load
+        chip->timer2_load = v;
+    }
+    else if (reg == 0x04) {     // Timer control
+        chip->timer_control = v;
+
+        if (v & 0x80) {       // Reset IRQ
+            chip->status &= ~0x80;
+        }
+    }
 }
 
 void OPL3_Generate4ChStream(opl3_chip *chip, int16_t *sndptr1, int16_t *sndptr2, uint32_t numsamples)
@@ -1527,4 +1542,63 @@ void OPL3_GenerateStream(opl3_chip *chip, int16_t *sndptr, uint32_t numsamples)
         OPL3_GenerateResampled(chip, sndptr);
         sndptr += 2;
     }
+}
+
+void OPL3_GenerateStreamMono(opl3_chip* chip, int16_t* sndptr, uint32_t numsamples)
+{
+    uint_fast32_t i;
+
+    for (i = 0; i < numsamples; i++)
+    {
+        short buf[2];
+        OPL3_GenerateResampled(chip, buf);
+        *sndptr = (buf[0] + buf[1]) / 2;
+        sndptr += 1;
+    }
+}
+
+static uint8_t opl3_status = 0x00;
+
+/* Called when CPU reads port 0x388 */
+uint8_t OPL3_ReadStatus(opl3_chip* opl3)
+{
+    uint8_t s;
+
+#if 1
+    s = opl3_status;
+    opl3_status ^= 0xC0;
+#else
+    s = opl3->status;
+    uint64_t fake_cycle_count = opl3->writebuf->time; // writebuf_samplecnt;
+    // Timer 1 - ~4 samples resolution
+    if ((opl3->timer_control & 1) && !((fake_cycle_count + (256 - opl3->timer1_load) * 4) & 3)) {
+        opl3->status |= 0x40;
+        s = 0xC0;
+    }
+    // Timer 2 - ~16 samples resolution
+    if ((opl3->timer_control & 2) && !((fake_cycle_count + (256 - opl3->timer2_load) * 16) & 15)) {
+        opl3->status |= 0x20;
+        s |= 0xA0;
+    }
+    /* Real OPL3 clears IRQ flag on read */
+   
+#endif
+    return s;
+}
+
+uint8_t OPL3_ReadReg(opl3_chip* chip, unsigned int reg)
+{
+    if ((reg & 3) == 0) {
+	    /* Status register read
+	       bit 7 = IRQ reset
+	       bit 6 = Timer 2 enable
+	       bit 5 = Timer 1 enable
+	       bit 1 = Timer 2 reset
+	       bit 0 = Timer 1 reset
+	    */
+		return OPL3_ReadStatus(chip);
+	}
+
+    /* Data port read (not implemented on real OPL3) */
+    return 0x00;
 }
