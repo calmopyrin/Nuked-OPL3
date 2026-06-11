@@ -157,8 +157,9 @@ struct _opl3_chip {
     /* Fake timers */
     uint8_t timer1_load;
     uint8_t timer2_load;
+    uint64_t timer1_last_load_time;
+    uint64_t timer2_last_load_time;
     uint8_t timer_control;
-    uint8_t status;     /* bits 0,1,7 */
 };
 
 void OPL3_Generate(opl3_chip *chip, int16_t *buf);

@@ -1503,15 +1503,36 @@ void OPL3_WriteRegBuffered(opl3_chip *chip, uint16_t reg, uint8_t v)
     /* Fake timers */
     if (reg == 0x02) {          // Timer 1 load
         chip->timer1_load = v;
+        if (chip->timer_control & 1)   // Timer 1 started
+            chip->timer1_last_load_time = chip->writebuf_samplecnt;
     }
     else if (reg == 0x03) {     // Timer 2 load
         chip->timer2_load = v;
+        if (chip->timer_control & 2)   // Timer 2 started
+            chip->timer2_last_load_time = chip->writebuf_samplecnt;
     }
     else if (reg == 0x04) {     // Timer control
+        /*
+        Bit	Meaning
+        0	Start Timer 1
+        1	Start Timer 2
+        2	(unused)
+        3	(unused)
+        4	(unused)
+        5	Mask Timer 2
+        6	Mask Timer 1
+        7	Reset IRQ flag
+        */
         chip->timer_control = v;
-
-        if (v & 0x80) {       // Reset IRQ
-            chip->status &= ~0x80;
+        if (v & 0x80) {       // Reset & enable IRQ, must be separate step!
+            //;
+        } else {
+            if (v & 1) {   // Timer 1 reload
+                chip->timer1_last_load_time = chip->writebuf_samplecnt;
+            }
+            if (v & 2) {   // Timer 2 reload
+                chip->timer2_last_load_time = chip->writebuf_samplecnt;
+            }
         }
     }
 }
@@ -1557,32 +1578,38 @@ void OPL3_GenerateStreamMono(opl3_chip* chip, int16_t* sndptr, uint32_t numsampl
     }
 }
 
-static uint8_t opl3_status = 0x00;
+static uint32_t OPL3_samples_per_timer_tick(opl3_chip* chip, uint32_t usec)
+{
+    uint32_t samplerate = (chip->rateratio * 49716) >> RSM_FRAC;
+    return (usec * samplerate + 500000) / 1000000;
+}
 
-/* Called when CPU reads port 0x388 */
+/* Approximated behaviour. Called when CPU reads port 0x388 */
 uint8_t OPL3_ReadStatus(opl3_chip* opl3)
 {
-    uint8_t s;
+    uint8_t s = 0;
+    uint64_t now = opl3->writebuf_samplecnt;
 
-#if 1
-    s = opl3_status;
-    opl3_status ^= 0xC0;
-#else
-    s = opl3->status;
-    uint64_t fake_cycle_count = opl3->writebuf->time; // writebuf_samplecnt;
-    // Timer 1 - ~4 samples resolution
-    if ((opl3->timer_control & 1) && !((fake_cycle_count + (256 - opl3->timer1_load) * 4) & 3)) {
-        opl3->status |= 0x40;
-        s = 0xC0;
+    // Timer 1 - 80 usec = ~4 samples resolution
+    if ((opl3->timer_control & 1)) {
+        uint32_t step = (256 - opl3->timer1_load);
+        uint64_t elapsed = now - opl3->timer1_last_load_time;
+        uint64_t counts = elapsed / OPL3_samples_per_timer_tick(opl3, 80);
+        if (opl3->timer1_load + counts >= 256)
+            s |= (opl3->timer_control ^ 0x40) & 0x40;
     }
-    // Timer 2 - ~16 samples resolution
-    if ((opl3->timer_control & 2) && !((fake_cycle_count + (256 - opl3->timer2_load) * 16) & 15)) {
-        opl3->status |= 0x20;
-        s |= 0xA0;
+    // Timer 2 - 320 usec = ~15 samples resolution
+    if (opl3->timer_control & 2) {
+        uint32_t step = (256 - opl3->timer2_load);
+        uint64_t elapsed = now - opl3->timer2_last_load_time;
+        uint64_t counts = elapsed / OPL3_samples_per_timer_tick(opl3, 320);
+        if (opl3->timer2_load + counts >= 256)
+            s |= (opl3->timer_control ^ 0x20) & 0x20;
     }
     /* Real OPL3 clears IRQ flag on read */
+    if (s & 0x60)
+        s |= 0x80;
    
-#endif
     return s;
 }
 
@@ -1591,10 +1618,8 @@ uint8_t OPL3_ReadReg(opl3_chip* chip, unsigned int reg)
     if ((reg & 3) == 0) {
 	    /* Status register read
 	       bit 7 = IRQ reset
-	       bit 6 = Timer 2 enable
-	       bit 5 = Timer 1 enable
-	       bit 1 = Timer 2 reset
-	       bit 0 = Timer 1 reset
+	       bit 6 = Timer 1 overflow
+	       bit 5 = Timer 2 overflow
 	    */
 		return OPL3_ReadStatus(chip);
 	}
