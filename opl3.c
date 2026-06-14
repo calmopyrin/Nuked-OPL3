@@ -1595,16 +1595,20 @@ uint8_t OPL3_ReadStatus(opl3_chip* opl3)
         uint32_t step = (256 - opl3->timer1_load);
         uint64_t elapsed = now - opl3->timer1_last_load_time;
         uint64_t counts = elapsed / OPL3_samples_per_timer_tick(opl3, 80);
-        if (opl3->timer1_load + counts >= 256)
+        if (opl3->timer1_load + counts >= 256) {
             s |= (opl3->timer_control ^ 0x40) & 0x40;
+            opl3->timer1_last_load_time = now;
+        }
     }
     // Timer 2 - 320 usec = ~15 samples resolution
     if (opl3->timer_control & 2) {
         uint32_t step = (256 - opl3->timer2_load);
         uint64_t elapsed = now - opl3->timer2_last_load_time;
         uint64_t counts = elapsed / OPL3_samples_per_timer_tick(opl3, 320);
-        if (opl3->timer2_load + counts >= 256)
+        if (opl3->timer2_load + counts >= 256) {
             s |= (opl3->timer_control ^ 0x20) & 0x20;
+            opl3->timer2_last_load_time = now;
+        }
     }
     /* Real OPL3 clears IRQ flag on read */
     if (s & 0x60)

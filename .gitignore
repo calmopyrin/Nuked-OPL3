@@ -9,3 +9,11 @@
 /opl3dll/x64/Release/opl3dll.tlog
 /opl3dll/x64/Release
 /x64
+opl3dll.vcxproj.user
+*.obj
+*.recipe
+*.ilk
+*.tlog
+*.log
+*.idb
+*.pdb
