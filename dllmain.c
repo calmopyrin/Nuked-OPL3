@@ -43,7 +43,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	return TRUE;
 }
 
-const char* reopl_version_string = "Nuked-OPL3";
+const char* reopl_version_string = "Nuked-OPL3 DLL v1.0";
 static opl3_chip* chip = NULL;
 static unsigned int opl_reg_select;
 static unsigned int sampleRate;
